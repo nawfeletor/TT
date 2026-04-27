@@ -179,6 +179,15 @@ body::before{content:'';position:fixed;inset:0;opacity:.035;pointer-events:none;
 .sr-dur{font-size:11px;color:var(--faint);white-space:nowrap;flex-shrink:0}
 .sr-btn{padding:5px 14px;background:transparent;border:1px solid var(--b2);border-radius:2px;color:var(--dim);font-family:var(--f);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;letter-spacing:.5px;transition:all .12s}
 .sr-btn:hover{background:var(--acc-d);border-color:var(--acc);color:var(--bone)}.sr-btn.added{background:var(--acc-s);border-color:var(--acc);color:var(--acc-l)}
+.sr-prev{width:28px;height:28px;background:transparent;border:1px solid var(--b1);border-radius:50%;color:var(--faint);font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;position:relative}
+.sr-prev:hover{border-color:var(--acc);color:var(--acc);background:var(--acc-s)}
+.sr-prev.playing{border-color:var(--acc);color:var(--acc);background:var(--acc-s);animation:prev-pulse 1.5s ease-in-out infinite}
+.sr-prev.loading{opacity:.5;cursor:not-allowed}
+@keyframes prev-pulse{0%,100%{box-shadow:0 0 0 0 var(--acc-s)}50%{box-shadow:0 0 0 5px transparent}}
+.sr-pbar{position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--b0);border-radius:0 0 var(--r) var(--r);overflow:hidden;opacity:0;transition:opacity .2s}
+.sr-pbar.show{opacity:1}
+.sr-pbar-f{height:100%;background:var(--acc);width:0%;transition:width .5s linear}
+.sr{position:relative}
 
 /* Right panel */
 .rp{background:rgba(5,3,5,.95);border-left:1px solid var(--b0);display:flex;flex-direction:column;overflow:hidden}
@@ -1201,6 +1210,7 @@ async function doDownload(){
 
 // ── Pages ──────────────────────────────────────────────────────
 function setPage(page,viewId){
+  if(page!=='search')stopPreview();
   S.page=page;S.viewId=viewId||null;S.filter='all';S.libSearch='';S.selIdx=-1;
   $('lib-si').value='';$('lib-clr').classList.remove('show');updateFBtns();
   var isSp=page==='search';
@@ -1249,16 +1259,91 @@ function renderSrResults(results){
   var html='<div class="sp-lbl">Results</div>';
   results.forEach(function(item){
     var inLib=hasVid(item.videoId),cached=inLib&&S.cachedIds.has(item.videoId);
-    html+='<div class="sr" ondblclick="addAndPlay(\''+item.videoId+'\')" >'+
+    html+='<div class="sr" id="sr-'+item.videoId+'" ondblclick="addAndPlay(\''+item.videoId+'\')" >'+
       '<div class="sr-th">'+(item.thumb?'<img src="'+item.thumb+'" alt="" onerror="this.style.display=\'none\'" />':'☽')+(cached?'<div class="sr-cd"></div>':'')+'</div>'+
       '<div class="sr-inf"><div class="sr-tt">'+esc(item.title)+'</div><div class="sr-au">'+esc(item.author)+'</div></div>'+
       '<div class="sr-dur">'+(item.duration?fmt(item.duration):'')+'</div>'+
+      '<button class="sr-prev" id="prev-'+item.videoId+'" title="30s preview" onclick="togglePreview(\''+item.videoId+'\',\''+esc(item.url)+'\','+item.duration+',event)">▶</button>'+
       '<button class="sr-btn'+(inLib?' added':'')+'" data-vid="'+item.videoId+'" onclick="addSr(\''+item.videoId+'\',event)">'+(inLib?'✓':'＋ Add')+'</button>'+
+      '<div class="sr-pbar" id="pbar-'+item.videoId+'"><div class="sr-pbar-f" id="pbarf-'+item.videoId+'"></div></div>'+
     '</div>';
   });
   $('sp-rw').innerHTML=html;
 }
 function addSr(vid,e){if(e)e.stopPropagation();var item=S.srResults.find(function(r){return r.videoId===vid;});if(!item)return;if(hasVid(vid)){toast('Already in library');return;}addFromItem(item,null);var btn=document.querySelector('.sr-btn[data-vid="'+vid+'"]');if(btn){btn.textContent='✓';btn.classList.add('added');}}
+
+// ── 30-second preview ──────────────────────────────────────────
+var _prevAudio=null,_prevVid=null,_prevTimer=null,_prevRaf=null;
+var PREVIEW_DURATION=30; // seconds to play
+var PREVIEW_OFFSET=30;   // seconds to skip from start (skip intros)
+
+function stopPreview(){
+  if(_prevAudio){_prevAudio.pause();_prevAudio.src='';_prevAudio=null;}
+  clearTimeout(_prevTimer);cancelAnimationFrame(_prevRaf);
+  if(_prevVid){
+    var btn=$('prev-'+_prevVid),pb=$('pbar-'+_prevVid),pbf=$('pbarf-'+_prevVid);
+    if(btn){btn.classList.remove('playing','loading');btn.textContent='▶';}
+    if(pb)pb.classList.remove('show');
+    if(pbf)pbf.style.width='0%';
+  }
+  _prevVid=null;
+}
+
+async function togglePreview(vid,url,duration,e){
+  if(e)e.stopPropagation();
+  // If already previewing this track — stop it
+  if(_prevVid===vid){stopPreview();return;}
+  // Stop any other preview first
+  stopPreview();
+  _prevVid=vid;
+  var btn=$('prev-'+vid),pb=$('pbar-'+vid),pbf=$('pbarf-'+vid);
+  if(!btn)return;
+  btn.classList.add('loading');btn.textContent='…';
+
+  try{
+    var res=await WAX.resolveAudio(url,vid);
+    if(!res||!res.ok||!res.audioUrl)throw new Error('No audio');
+    if(_prevVid!==vid)return; // user cancelled while loading
+
+    var audio=new Audio();
+    audio.volume=0.75;
+    _prevAudio=audio;
+
+    // Start from PREVIEW_OFFSET seconds in (or 0 for short tracks)
+    var offset=Math.min(PREVIEW_OFFSET, Math.max(0,(duration||0)-PREVIEW_DURATION-5));
+    audio.src=res.audioUrl;
+    audio.currentTime=offset;
+
+    await audio.play();
+    btn.classList.remove('loading');btn.classList.add('playing');btn.textContent='■';
+    pb.classList.add('show');
+
+    // Animate progress bar over PREVIEW_DURATION seconds
+    var startTime=performance.now();
+    function tick(){
+      if(_prevVid!==vid)return;
+      var elapsed=(performance.now()-startTime)/1000;
+      var pct=Math.min(100,(elapsed/PREVIEW_DURATION)*100);
+      if(pbf)pbf.style.width=pct+'%';
+      if(elapsed<PREVIEW_DURATION)_prevRaf=requestAnimationFrame(tick);
+    }
+    _prevRaf=requestAnimationFrame(tick);
+
+    // Auto-stop after PREVIEW_DURATION seconds
+    _prevTimer=setTimeout(function(){
+      stopPreview();toast('Preview ended — double-click to add & play');
+    },PREVIEW_DURATION*1000);
+
+    audio.addEventListener('ended',stopPreview);
+    audio.addEventListener('error',function(){if(_prevVid===vid)stopPreview();});
+  }catch(err){
+    if(_prevVid===vid){
+      btn.classList.remove('loading','playing');btn.textContent='▶';
+      _prevVid=null;
+      toast('Preview unavailable');
+    }
+  }
+}
 function addAndPlay(vid){var item=S.srResults.find(function(r){return r.videoId===vid;});if(!item)return;var ex=S.tracks.find(function(t){return t.videoId===vid;});if(ex){playTrack(ex);return;}var t=addFromItem(item,null);playTrack(t);}
 function addFromItem(item,plId){
   var t={id:uid(),url:item.url,source:'youtube',videoId:item.videoId,title:item.title||'Unknown',artist:item.author||'Unknown',thumb:item.thumb||ytThumb(item.videoId),duration:item.duration||0,liked:false,addedAt:Date.now()};
