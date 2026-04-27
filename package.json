@@ -12,6 +12,11 @@
     "build:all": "electron-builder --win nsis portable --linux AppImage deb"
   },
   "build": {
+    "publish": {
+      "provider": "github",
+      "owner": "nawfeletor",
+      "repo": "TT"
+    },
     "appId": "com.nawfy.player",
     "productName": "Nawfy",
     "copyright": "Copyright © 2025 Nawfy",
@@ -70,6 +75,9 @@
       "icon": "assets/icon.png",
       "category": "public.app-category.music"
     }
+  },
+  "dependencies": {
+    "electron-updater": "^6.1.7"
   },
   "devDependencies": {
     "electron": "^29.0.0",

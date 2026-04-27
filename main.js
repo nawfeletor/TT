@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, Tray, Menu, globalShortcut, nativeImage } = require('electron')
+const { app, BrowserWindow, ipcMain, shell, Tray, Menu, globalShortcut, nativeImage, dialog } = require('electron')
 const path  = require('path')
 const fs    = require('fs')
 const https = require('https')
@@ -7,6 +7,46 @@ const { spawn } = require('child_process')
 
 let win
 let tray
+
+// ── Auto-updater ───────────────────────────────────────────────
+// Only runs in the packaged app, not during development.
+let autoUpdater = null
+if (app.isPackaged) {
+  try {
+    autoUpdater = require('electron-updater').autoUpdater
+    autoUpdater.autoDownload    = true   // download silently in background
+    autoUpdater.autoInstallOnAppQuit = true  // install on next quit if user skips
+
+    autoUpdater.on('update-available', info => {
+      dialog.showMessageBox(win, {
+        type:    'info',
+        title:   'Update Available',
+        message: `Nawfy ${info.version} is available`,
+        detail:  'Downloading the update in the background. You\'ll be notified when it\'s ready.',
+        buttons: ['OK'],
+        icon:    path.join(__dirname, 'assets', 'icon.png'),
+      }).catch(() => {})
+    })
+
+    autoUpdater.on('update-downloaded', () => {
+      dialog.showMessageBox(win, {
+        type:    'info',
+        title:   'Update Ready',
+        message: 'A new version of Nawfy has been downloaded.',
+        detail:  'Restart now to install the update, or it will install automatically when you quit.',
+        buttons: ['Restart Now', 'Later'],
+        icon:    path.join(__dirname, 'assets', 'icon.png'),
+      }).then(result => {
+        if (result.response === 0) {
+          app.isQuitting = true
+          autoUpdater.quitAndInstall()
+        }
+      }).catch(() => {})
+    })
+
+    autoUpdater.on('error', () => {})  // swallow — no crash on update failure
+  } catch(e) {}
+}
 
 const APP_ROOT = app.isPackaged ? path.dirname(app.getPath('exe')) : __dirname
 const isWin    = process.platform === 'win32'
@@ -393,6 +433,13 @@ app.whenReady().then(() => {
   findYtDlp().then(found => {
     if (found) console.log('[nawfy] yt-dlp ready:', found.bin)
   })
+
+  // Check for app updates 5 seconds after launch (non-blocking)
+  if (autoUpdater) {
+    setTimeout(() => {
+      autoUpdater.checkForUpdates().catch(() => {})
+    }, 5000)
+  }
 })
 
 app.on('before-quit', () => { app.isQuitting = true })
