@@ -1,0 +1,158 @@
+name: Build & Release Nawfy
+
+on:
+  push:
+    tags:
+      - 'v*'          # triggers on v1.0.0, v1.2.3, etc.
+  workflow_dispatch:  # allow manual trigger from GitHub UI
+
+permissions:
+  contents: write   # needed to create GitHub Releases and upload assets
+
+jobs:
+  # ── Windows build ──────────────────────────────────────────────
+  build-windows:
+    name: Build Windows (x64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Windows installer + portable
+        run: npm run build:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-builds
+          path: |
+            dist/*.exe
+          retention-days: 7
+
+  # ── Linux build ────────────────────────────────────────────────
+  build-linux:
+    name: Build Linux (x64)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.0-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            fuse
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Linux AppImage + deb
+        run: npm run build:linux
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-builds
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+          retention-days: 7
+
+  # ── Create GitHub Release with all artifacts ───────────────────
+  release:
+    name: Publish GitHub Release
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: List release assets
+        run: ls -lah release-assets/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Nawfy ${{ github.ref_name }}"
+          body: |
+            ## 🦇 Nawfy ${{ github.ref_name }}
+
+            A personal music player that streams YouTube audio directly — no browser, no ads, no compromise.
+
+            ### Download
+            | Platform | File | Notes |
+            |---|---|---|
+            | Windows | `Nawfy-*-x64-nsis.exe` | Installer (recommended) |
+            | Windows | `Nawfy-*-x64-portable.exe` | Portable — no install needed |
+            | Linux | `Nawfy-*.AppImage` | Run anywhere — `chmod +x` then execute |
+            | Linux | `Nawfy-*.deb` | Debian / Ubuntu package |
+
+            ### Setup
+            On first launch, click **"Download yt-dlp"** — Nawfy downloads it automatically (~18 MB). One-time setup.
+
+            ### What's new
+            See [CHANGELOG.md](CHANGELOG.md) for details.
+          files: release-assets/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Deploy GitHub Pages website ────────────────────────────────
+  deploy-website:
+    name: Deploy Website to GitHub Pages
+    needs: [release]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload website
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs   # our website lives in /docs
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

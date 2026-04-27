@@ -1,0 +1,27 @@
+const { contextBridge, ipcRenderer } = require('electron')
+
+contextBridge.exposeInMainWorld('WAX', {
+  minimize:        () => ipcRenderer.send('win-minimize'),
+  maximize:        () => ipcRenderer.send('win-maximize'),
+  close:           () => ipcRenderer.send('win-close'),
+  quit:            () => ipcRenderer.send('win-quit'),
+  openExternal:    (url) => ipcRenderer.invoke('open-external', url),
+  checkSetup:      ()    => ipcRenderer.invoke('check-setup'),
+  downloadYtDlp:   ()    => ipcRenderer.invoke('download-ytdlp'),
+  updateYtDlp:     ()    => ipcRenderer.invoke('update-ytdlp'),
+  resolveAudio:    (url, videoId) => ipcRenderer.invoke('resolve-audio', url, videoId),
+  prefetchTrack:   (url, videoId) => ipcRenderer.invoke('prefetch-track', url, videoId),
+  searchYouTube:   (q)   => ipcRenderer.invoke('search-youtube', q),
+  getCacheStats:   ()    => ipcRenderer.invoke('get-cache-stats'),
+  clearCache:      ()    => ipcRenderer.invoke('clear-cache'),
+  getCachedIds:    ()    => ipcRenderer.invoke('get-cached-ids'),
+  trayUpdate:      (t)   => ipcRenderer.send('tray-update', t),
+  saveFile:        (name, data) => ipcRenderer.invoke('save-file', name, data),
+  openFile:        ()    => ipcRenderer.invoke('open-file'),
+  downloadAudio:   (url, videoId, filename) => ipcRenderer.invoke('download-audio', url, videoId, filename),
+  openMiniPlayer:  (data) => ipcRenderer.invoke('open-mini-player', data),
+  updateMiniPlayer:(data) => ipcRenderer.invoke('update-mini-player', data),
+  closeMiniPlayer: ()    => ipcRenderer.invoke('close-mini-player'),
+  on: (ch, cb) => ipcRenderer.on(ch, (_, ...a) => cb(...a)),
+  onYtDlpProgress: (cb) => ipcRenderer.on('ytdlp-progress', (_, d) => cb(d)),
+})

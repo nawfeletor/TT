@@ -1,0 +1,80 @@
+{
+  "name": "nawfy",
+  "version": "1.0.0",
+  "description": "Nawfy — Personal Music Player",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win nsis",
+    "build:win": "electron-builder --win nsis portable",
+    "build:linux": "electron-builder --linux AppImage deb",
+    "build:all": "electron-builder --win nsis portable --linux AppImage deb"
+  },
+  "build": {
+    "appId": "com.nawfy.player",
+    "productName": "Nawfy",
+    "copyright": "Copyright © 2025 Nawfy",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build-resources"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "assets/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "assets/",
+        "to": "assets/",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        { "target": "nsis",     "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "executableName": "Nawfy",
+      "requestedExecutionLevel": "asInvoker",
+      "artifactName": "Nawfy-${version}-${arch}-${target}.exe",
+      "verifyUpdateCodeSignature": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Nawfy",
+      "runAfterFinish": true,
+      "installerSidebar": "build-resources/installer-sidebar.bmp",
+      "deleteAppDataOnUninstall": false,
+      "displayLanguageSelector": false,
+      "include": "build-resources/installer.nsh"
+    },
+    "linux": {
+      "icon": "assets/icon512.png",
+      "category": "Audio",
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb",      "arch": ["x64"] }
+      ],
+      "artifactName": "Nawfy-${version}-${arch}.${ext}"
+    },
+    "mac": {
+      "icon": "assets/icon.png",
+      "category": "public.app-category.music"
+    }
+  },
+  "devDependencies": {
+    "electron": "^29.0.0",
+    "electron-builder": "^24.0.0"
+  }
+}
