@@ -44,21 +44,15 @@
     },
     "nsis": {
       "artifactName": "Nawfy-${version}-x64-Setup.exe",
-      "oneClick": false,
+      "oneClick": true,
       "perMachine": false,
-      "allowElevation": true,
-      "allowToChangeInstallationDirectory": true,
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico",
-      "installerHeaderIcon": "assets/icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Nawfy",
       "runAfterFinish": true,
-      "installerSidebar": "build-resources/installer-sidebar.bmp",
-      "deleteAppDataOnUninstall": false,
-      "displayLanguageSelector": false,
-      "include": "build-resources/installer.nsh"
+      "deleteAppDataOnUninstall": false
     },
     "portable": {
       "artifactName": "Nawfy-${version}-x64-Portable.exe"
