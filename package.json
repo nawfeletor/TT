@@ -2,6 +2,7 @@
   "name": "nawfy",
   "version": "1.0.0",
   "description": "Nawfy — Personal Music Player",
+  "author": "nawfeletor",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -39,10 +40,10 @@
       ],
       "executableName": "Nawfy",
       "requestedExecutionLevel": "asInvoker",
-      "artifactName": "Nawfy-${version}-${arch}-${target}.exe",
       "verifyUpdateCodeSignature": false
     },
     "nsis": {
+      "artifactName": "Nawfy-${version}-x64-Setup.exe",
       "oneClick": false,
       "perMachine": false,
       "allowElevation": true,
@@ -58,6 +59,9 @@
       "deleteAppDataOnUninstall": false,
       "displayLanguageSelector": false,
       "include": "build-resources/installer.nsh"
+    },
+    "portable": {
+      "artifactName": "Nawfy-${version}-x64-Portable.exe"
     },
     "linux": {
       "icon": "assets/icon512.png",
