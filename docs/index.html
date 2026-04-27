@@ -497,7 +497,43 @@ document.querySelectorAll('a[href^="#"]').forEach(function(a){
     var winPort    =findAsset(/portable\.exe$/i);
     var linuxAI    =findAsset(/\.AppImage$/i);
     var linuxDeb   =findAsset(/\.deb$/i);
-    function setLink(id,url){if(url){var el=document.getElementById(id);if(el)el.href=url;}}
+    function setLink(id,url){
+      if(url){
+        var el=document.getElementById(id);
+        if(!el)return;
+        el.href=url;
+        var filename=url.split('/').pop();
+        el.addEventListener('click',function(e){
+          e.preventDefault();
+          var btn=this;
+          var orig=btn.innerHTML;
+          btn.innerHTML='⏳ Starting download…';
+          btn.style.opacity='0.7';
+          btn.style.pointerEvents='none';
+          fetch(url)
+            .then(function(r){return r.blob();})
+            .then(function(blob){
+              var blobUrl=URL.createObjectURL(blob);
+              var a=document.createElement('a');
+              a.href=blobUrl;
+              a.download=filename;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              setTimeout(function(){URL.revokeObjectURL(blobUrl);},1000);
+              btn.innerHTML=orig;
+              btn.style.opacity='';
+              btn.style.pointerEvents='';
+            })
+            .catch(function(){
+              window.open(url,'_blank');
+              btn.innerHTML=orig;
+              btn.style.opacity='';
+              btn.style.pointerEvents='';
+            });
+        });
+      }
+    }
     setLink('dl-win-setup',   winSetup);
     setLink('dl-win-port',    winPort||winSetup);
     setLink('dl-linux-appimage',linuxAI);
